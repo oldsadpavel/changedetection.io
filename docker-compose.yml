@@ -5,6 +5,32 @@ services:
       hostname: changedetection
       volumes:
         - changedetection-data:/datastore
+      # Traefik ForwardAuth — закрываем UI changedetection нашим 365-логином.
+      # Бэк: https://parts.mrkt.ru/cdsso/* (app/Http/Controllers/CdSsoController.php).
+      # Подробности — docs/monitoring-sso.md в репо new_tetrapak.
+      labels:
+        # Middleware: дёргает наш /cdsso/forward, который или пропускает (200),
+        # или 302 редиректит на /cdsso/login на этом же домене.
+        - "traefik.http.middlewares.cd-auth.forwardauth.address=https://parts.mrkt.ru/cdsso/forward"
+        - "traefik.http.middlewares.cd-auth.forwardauth.trustForwardHeader=true"
+        - "traefik.http.middlewares.cd-auth.forwardauth.authResponseHeaders=X-Auth-Email,X-Auth-User"
+
+        # Основной router CD: главный сайт, ниже приоритет (по умолчанию 0),
+        # все пути НЕ-/cdsso идут через cd-auth.
+        - "traefik.http.routers.changedetection.rule=Host(`changedetection.letspack.ru`)"
+        - "traefik.http.routers.changedetection.entrypoints=https"
+        - "traefik.http.routers.changedetection.tls=true"
+        - "traefik.http.routers.changedetection.middlewares=cd-auth"
+
+        # Под-router для /cdsso/* — выше приоритет, БЕЗ middleware (иначе loop).
+        # Указывает на external service cdsso-svc → https://parts.mrkt.ru
+        - "traefik.http.routers.cdsso.rule=Host(`changedetection.letspack.ru`) && PathPrefix(`/cdsso`)"
+        - "traefik.http.routers.cdsso.entrypoints=https"
+        - "traefik.http.routers.cdsso.tls=true"
+        - "traefik.http.routers.cdsso.priority=200"
+        - "traefik.http.routers.cdsso.service=cdsso-svc"
+        - "traefik.http.services.cdsso-svc.loadbalancer.server.url=https://parts.mrkt.ru"
+        - "traefik.http.services.cdsso-svc.loadbalancer.passhostheader=true"
 # Configurable proxy list support, see https://github.com/dgtlmoon/changedetection.io/wiki/Proxy-configuration#proxy-list-support
 #        - ./proxies.json:/datastore/proxies.json
 
