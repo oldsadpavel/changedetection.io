@@ -148,4 +148,3 @@ ENTRYPOINT ["/docker-entrypoint.sh"]
 
 # Default command (can be overridden in docker-compose.yml)
 CMD ["python", "./changedetection.py", "-d", "/datastore"]
-
